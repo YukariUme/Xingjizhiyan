@@ -1,0 +1,21 @@
+# 可选：扫描版（图片型）PDF 的离线中文 OCR 支持
+# 安装：python -m pip install -r requirements-ocr.txt
+pymupdf>=1.24
+rapidocr_onnxruntime>=1.3
+
+# 复杂教材结构化解析
+# rapid_layout: 版面分析（title/text/table/formula/figure 区域检测）
+# rapid_table:  表格结构识别（扫描版表格还原）
+# pdfplumber:   文字层 PDF 表格提取（原生表格结构）
+rapid_layout>=1.2
+rapid_table>=3.0
+pdfplumber>=0.11
+
+# 公式识别（RapidLaTeXOCR，可选）：
+# 注意：rapid_latex_ocr 不在 PyPI，需从 GitHub RapidAI/RapidLaTeXOCR 源码安装，
+# 模型单独下载（>100MB）。安装后 OCR_PROVIDER=rapid 管线自动启用公式 LaTeX 识别；
+# 未安装时公式区域回退为原文标记，不影响其余管线。
+# pip install git+https://github.com/RapidAI/RapidLaTeXOCR.git
+
+# PaddleOCR（可选，切换 OCR_PROVIDER=paddle 时安装）：
+# pip install paddleocr paddlepaddle

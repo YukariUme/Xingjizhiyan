@@ -1,0 +1,202 @@
+可以。你电脑关掉没关系，**这些命令都在阿里云服务器上跑**，不是在你本地电脑跑。
+
+我给你一份**最省脑子的保姆级命令清单**，按这个顺序执行就行。  
+我按你仓库里的 [deploy/setup-server.sh](D:/MyStudy/2026Summer/jbgs/deploy/setup-server.sh)、[deploy/pull-images.sh](D:/MyStudy/2026Summer/jbgs/deploy/pull-images.sh)、[deploy/backup.sh](D:/MyStudy/2026Summer/jbgs/deploy/backup.sh) 来写的。
+
+**方案：阿里云服务器常驻 + Cloudflare Tunnel 公网入口**
+- 不备案
+- 不用你电脑一直开机
+- 适合先给评委看一个月
+- 公网地址是 `trycloudflare.com` 临时地址，服务器不重启的话通常能一直用；重启后可能会变
+
+---
+
+## 1. 登录服务器
+```bash
+ssh root@你的服务器IP
+```
+
+---
+
+## 2. 上传代码到服务器
+二选一。
+
+### 方式 A：git 拉代码
+```bash
+cd /root
+git clone 你的仓库地址 jbgs
+cd jbgs
+```
+
+### 方式 B：你已经打包上传了
+```bash
+cd /root
+tar -xzf jbgs.tar.gz
+cd jbgs
+```
+
+---
+
+## 3. 初始化服务器环境
+```bash
+bash deploy/setup-server.sh
+```
+
+这一步会装 Docker、Compose、常用工具。
+
+---
+
+## 4. 配置环境变量
+```bash
+cp .env.cloud.example .env
+openssl rand -hex 32
+openssl rand -hex 16
+nano .env
+```
+
+把 `.env` 里至少改成这样：
+
+```dotenv
+POSTGRES_PASSWORD=你刚生成的16位随机串
+SECRET_KEY=你刚生成的32位随机串
+DEEPSEEK_API_KEY=你的DeepSeek密钥
+CORS_ORIGINS=http://127.0.0.1
+DEMO_MODE=false
+WEB_PORT=80
+```
+
+如果你暂时没有 DeepSeek Key，AI 问答功能会受影响，但网站主体还能启动。
+
+---
+
+## 5. 预拉镜像并启动项目
+```bash
+bash deploy/pull-images.sh
+docker compose up -d --build
+docker compose ps
+```
+
+正常的话会看到：
+- `jbgs-db`
+- `jbgs-backend`
+- `jbgs-frontend`
+
+---
+
+## 6. 看后端是否正常
+```bash
+docker compose logs -f backend
+```
+
+另开一个窗口检查健康接口：
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+看到类似 `{"status":"ok"}` 就对了。
+
+---
+
+## 7. 开公网访问，不备案
+这个命令会把你服务器上的网站挂到 Cloudflare 隧道上：
+
+```bash
+docker run -d --name cloudflared --restart unless-stopped --network host cloudflare/cloudflared:latest tunnel --url http://127.0.0.1:80
+docker logs -f cloudflared
+```
+
+日志里会出现一个公网地址，通常长这样：
+
+```text
+https://xxxx.trycloudflare.com
+```
+
+这个地址就是给评委访问的入口。
+
+---
+
+## 8. 如果网页打开了，但接口报跨域
+把刚才的隧道地址写回 `.env`，再重启后端：
+
+```bash
+nano .env
+```
+
+把：
+```dotenv
+CORS_ORIGINS=http://127.0.0.1
+```
+
+改成：
+```dotenv
+CORS_ORIGINS=https://xxxx.trycloudflare.com
+```
+
+然后重启：
+```bash
+docker compose up -d
+```
+
+---
+
+## 9. 上线后验证
+按这个顺序测一遍：
+
+```bash
+docker compose ps
+curl http://127.0.0.1:8000/api/health
+docker compose logs -f frontend
+docker compose logs -f db
+docker logs -f cloudflared
+```
+
+浏览器里再测：
+- 打开公网地址
+- 注册账号
+- 登录
+- 上传一个小 PDF
+- 提交一道题
+- 问一次 AI
+
+---
+
+## 10. 备份
+手动备份一次先确认没问题：
+
+```bash
+bash deploy/backup.sh
+```
+
+定时备份：
+
+```bash
+crontab -e
+```
+
+加这一行：
+```cron
+0 3 * * * cd /root/jbgs && bash deploy/backup.sh >> /var/log/jbgs-backup.log 2>&1
+```
+
+---
+
+## 11. 最常用的排错命令
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f db
+docker compose logs -f frontend
+docker logs -f cloudflared
+```
+
+如果 `docker compose up` 直接报 YAML 错，先检查 `docker-compose.yml` 末尾的 `volumes`，`jbgs-data` 不能重复定义成两份。
+
+---
+
+## 一句话记法
+- **你电脑可以关**
+- **阿里云服务器不能关**
+- **`docker compose` 要常驻**
+- **`cloudflared` 也要常驻**
+
+我已经把这套命令按你这个项目的实际结构整理好了，下一步我可以继续给你补一份“上线后评委验收清单”，也就是他们打开后要看哪些页面、点哪些功能，能最快证明项目是完整可用的。

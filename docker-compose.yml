@@ -1,0 +1,79 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: jbgs-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jbgs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-jbgs}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 初始化：建库后自动启用 pgvector 扩展
+      - ./deploy/init-db-vector.sql:/docker-entrypoint-initdb.d/01-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jbgs} -d ${POSTGRES_DB:-jbgs}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: jbgs-backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-jbgs}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jbgs}
+      KNOWLEDGE_FILES_DIR: /app/data/knowledge_files
+      EMBEDDINGS_CACHE_DIR: /app/data/embeddings
+      DEMO_MODE: ${DEMO_MODE:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      RAG_PROVIDER: ${RAG_PROVIDER:-auto}
+      JUDGE_PROVIDER: ${JUDGE_PROVIDER:-docker}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-auto}
+      RAG_SEARCH_MODE: ${RAG_SEARCH_MODE:-hybrid}
+      OCR_PROVIDER: ${OCR_PROVIDER:-auto}
+      PDF_OCR_ENABLED: ${PDF_OCR_ENABLED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://your-domain.com}
+      SECRET_KEY: ${SECRET_KEY:?请在 .env 中设置 SECRET_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # Docker 判题：挂载宿主 Docker 套接字（判题容器与后端同一 daemon）
+      JUDGE_DOCKER_IMAGE_PYTHON: ${JUDGE_DOCKER_IMAGE_PYTHON:-python:3.11-slim}
+      JUDGE_DOCKER_IMAGE_C: ${JUDGE_DOCKER_IMAGE_C:-gcc:13}
+      JUDGE_DOCKER_IMAGE_CPP: ${JUDGE_DOCKER_IMAGE_CPP:-gcc:13}
+      JUDGE_DOCKER_IMAGE_JAVA: ${JUDGE_DOCKER_IMAGE_JAVA:-eclipse-temurin:17-jdk}
+      JUDGE_DOCKER_VOLUME_NAME: jbgs-data
+      JUDGE_ALLOW_UNSAFE_LOCAL: "false"
+    volumes:
+      - jbgs-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: jbgs-frontend
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pg-data:
+  jbgs-data:
+    name: jbgs-data
+  jbgs-data:

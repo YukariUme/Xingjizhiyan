@@ -1,0 +1,13 @@
+# 域名 + HTTPS（Caddy 自动签发证书）
+# 云主机执行：
+#   docker run -d --name caddy -p 80:80 -p 443:443 \
+#     -v $PWD/Caddyfile:/etc/caddy/Caddyfile -v caddy-data:/data \
+#     caddy:2
+
+your-domain.com {
+    encode gzip
+    reverse_proxy 127.0.0.1:80 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

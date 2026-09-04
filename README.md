@@ -297,5 +297,6 @@ python -m pytest -q
 
 覆盖：LLM 生成、RAG 切分/检索/引用、Mock Judge 判定、三类 Agent、API 认证与 RBAC
 （学生隔离、教师课程隔离、科研私有）、AI 批改闭环、知识库 CRUD、代码提交与诊断。
-#   X i n g j i z h i y a n  
+#   X i n g j i z h i y a n 
+ 
  

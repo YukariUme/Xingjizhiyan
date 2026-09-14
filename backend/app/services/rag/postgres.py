@@ -141,7 +141,11 @@ class PostgresRAGService(SQLiteRAGService):
         self, db: Session, query: str, mask: np.ndarray, top_k: int
     ) -> np.ndarray | None:
         """pgvector 余弦候选池：返回与 self._chunks 对齐的语义得分数组。"""
-        q_emb = self.embedder.embed_text(self._normalize_query(query))
+        try:
+            q_emb = self.embedder.embed_text(self._normalize_query(query))
+        except Exception as exc:  # noqa: BLE001 - 语义不可用时回退词法，不中断检索
+            logger.warning("语义向量化失败（%s），回退词法检索。", exc)
+            return None
         if not q_emb or len(q_emb) != self.VECTOR_DIM:
             return None
         pool = max(top_k * 50, 300)

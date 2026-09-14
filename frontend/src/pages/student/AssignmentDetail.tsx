@@ -1,4 +1,4 @@
-/** 作业详情：编程题在线编辑/评测/诊断，简答题提交。 */
+﻿/** 作业详情：编程题在线编辑/评测/诊断，简答题提交。 */
 
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -22,8 +22,9 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
   c: "#include <stdio.h>\n\nint main() {\n    // TODO\n    return 0;\n}\n",
 };
 
-function QuestionView({ assignmentId, question, submission }: {
+function QuestionView({ assignmentId, courseId, question, submission }: {
   assignmentId: number;
+  courseId: number;
   question: Question;
   submission: MySubmission | undefined;
 }) {
@@ -83,6 +84,11 @@ function QuestionView({ assignmentId, question, submission }: {
       if (res.workflow_run_id) {
         setNotice((n) => `${n}（工作流 #${res.workflow_run_id} 已记录）`);
       }
+      void api.post("/curriculum/records", {
+        action: "homework",
+        course_id: courseId,
+        detail: { assignment_id: assignmentId, question_id: question.id, qtype: question.qtype, verdict: res.verdict },
+      });
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "提交失败");
     } finally {
@@ -108,6 +114,11 @@ function QuestionView({ assignmentId, question, submission }: {
           : "已提交，等待批改"
       );
       void loadDetail();
+      void api.post("/curriculum/records", {
+        action: "homework",
+        course_id: courseId,
+        detail: { assignment_id: assignmentId, question_id: question.id, qtype: question.qtype, status: res.status },
+      });
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "提交失败");
     } finally {
@@ -129,6 +140,11 @@ function QuestionView({ assignmentId, question, submission }: {
         mode,
       });
       setDiagnosis(res);
+      void api.post("/curriculum/records", {
+        action: "qa",
+        course_id: courseId,
+        detail: { assignment_id: assignmentId, question_id: question.id, mode },
+      });
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "诊断失败");
     } finally {
@@ -174,7 +190,12 @@ function QuestionView({ assignmentId, question, submission }: {
             </select>
             <span className="small muted">支持 C / C++ / Java / Python，切换语言会替换为对应模板</span>
           </div>
-          <CodeEditor value={code} onChange={setCode} language={language} />
+          <CodeEditor
+            value={code}
+            onChange={setCode}
+            language={language}
+            highlightLines={(diagnosis?.line_anchors ?? []).map((a) => a.line)}
+          />
           <div className="row mt-8">
             <button className="btn btn-primary" onClick={() => void submitCode()} disabled={busy || !code.trim()}>
               {busy ? "评测中…" : "提交评测"}
@@ -205,14 +226,25 @@ function QuestionView({ assignmentId, question, submission }: {
               <div className="table-wrap">
                 <table className="table">
                   <thead>
-                    <tr><th>测试点</th><th>结果</th><th>说明</th></tr>
+                    <tr>
+                      <th>测试点</th>
+                      <th>结果</th>
+                      <th>输入</th>
+                      <th>期望输出</th>
+                      <th>实际输出</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {judge.judge_report.map((t) => (
-                      <tr key={t.id}>
-                        <td>{t.name}</td>
+                    {judge.judge_report.map((t, i) => (
+                      <tr key={t.test_id ?? t.id ?? i}>
+                        <td className="small">{t.name}</td>
                         <td><span className={`badge ${t.passed ? "green" : "red"}`}>{t.passed ? "通过" : "未通过"}</span></td>
-                        <td className="small">{t.message}</td>
+                        <td className="mono small">{t.input || "—"}</td>
+                        <td className="mono small">{t.expected || "—"}</td>
+                        <td className={`mono small ${t.passed ? "" : "judge-diff"}`}>
+                          <div>{t.actual || "—"}</div>
+                          {!t.passed && t.message && <div className="muted" style={{ fontSize: 11 }}>{t.message}</div>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -229,6 +261,16 @@ function QuestionView({ assignmentId, question, submission }: {
               </div>
               <h3>错误原因</h3>
               <p className="small">{diagnosis.error_reason}</p>
+              {diagnosis.line_anchors && diagnosis.line_anchors.length > 0 && (
+                <>
+                  <h3>代码行定位</h3>
+                  {diagnosis.line_anchors.map((a) => (
+                    <div key={a.line} className="small" style={{ padding: "4px 0" }}>
+                      <span className="badge red">第 {a.line} 行</span> {a.note}
+                    </div>
+                  ))}
+                </>
+              )}
               <div className="row wrap">
                 {diagnosis.knowledge_points.map((k) => <span key={k} className="badge">{k}</span>)}
               </div>
@@ -312,7 +354,9 @@ export default function StudentAssignmentDetail() {
         active={String(active)}
         onChange={(k) => setActiveQuestion(Number(k))}
       />
-      <QuestionView key={q.id} assignmentId={a.id} question={q} submission={sub} />
+      <QuestionView key={q.id} assignmentId={a.id} courseId={a.course_id} question={q} submission={sub} />
     </div>
   );
 }
+
+

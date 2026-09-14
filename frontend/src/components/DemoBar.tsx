@@ -191,6 +191,49 @@ export function DemoStatusBar() {
   const { session, next, prev, gotoStep, switchRole, reset, exit } = useDemo();
   const navigate = useNavigate();
   const [busy, setBusy] = useState<{ msg: string; tick: number } | null>(null);
+  const handlersRef = useRef<{
+    doNext: () => void;
+    doPrev: () => void;
+    doSwitchRole: (role: "teacher" | "student" | "researcher") => void;
+    doReset: () => void;
+    doExit: () => void;
+  }>({
+    doNext: () => {},
+    doPrev: () => {},
+    doSwitchRole: () => {},
+    doReset: () => {},
+    doExit: () => {},
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || !e.shiftKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "arrowright") {
+        e.preventDefault();
+        void handlersRef.current.doNext();
+      } else if (k === "arrowleft") {
+        e.preventDefault();
+        void handlersRef.current.doPrev();
+      } else if (k === "1") {
+        e.preventDefault();
+        void handlersRef.current.doSwitchRole("teacher");
+      } else if (k === "2") {
+        e.preventDefault();
+        void handlersRef.current.doSwitchRole("student");
+      } else if (k === "3") {
+        e.preventDefault();
+        void handlersRef.current.doSwitchRole("researcher");
+      } else if (k === "r") {
+        e.preventDefault();
+        void handlersRef.current.doReset();
+      } else if (k === "x") {
+        e.preventDefault();
+        void handlersRef.current.doExit();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   if (!session) return null;
   const steps = session.scenario.steps;
   const currentIdx = steps.findIndex((s) => s.id === session.current_step);
@@ -254,38 +297,7 @@ export function DemoStatusBar() {
   };
 
   // 快捷键：Ctrl+Shift+→/← 步骤 · 1/2/3 角色 · R 重置 · X 退出
-  const handlersRef = useRef({ doNext, doPrev, doSwitchRole, doReset, doExit });
   handlersRef.current = { doNext, doPrev, doSwitchRole, doReset, doExit };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || !e.shiftKey) return;
-      const k = e.key.toLowerCase();
-      if (k === "arrowright") {
-        e.preventDefault();
-        void handlersRef.current.doNext();
-      } else if (k === "arrowleft") {
-        e.preventDefault();
-        void handlersRef.current.doPrev();
-      } else if (k === "1") {
-        e.preventDefault();
-        void handlersRef.current.doSwitchRole("teacher");
-      } else if (k === "2") {
-        e.preventDefault();
-        void handlersRef.current.doSwitchRole("student");
-      } else if (k === "3") {
-        e.preventDefault();
-        void handlersRef.current.doSwitchRole("researcher");
-      } else if (k === "r") {
-        e.preventDefault();
-        void handlersRef.current.doReset();
-      } else if (k === "x") {
-        e.preventDefault();
-        void handlersRef.current.doExit();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   return (
     <div

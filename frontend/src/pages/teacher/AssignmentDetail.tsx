@@ -6,6 +6,12 @@ import { Card, EmptyState, Loading, statusBadge, useAsync } from "../../componen
 import { verdictClass, verdictLabel } from "../verdict";
 import type { Assignment } from "../../types";
 
+function fmtCn(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 interface MatrixRow {
   submission_id: number;
   assignment_id: number;
@@ -36,7 +42,7 @@ export default function TeacherAssignmentDetail() {
       <div className="page-header">
         <div>
           <h1>{a.title}</h1>
-          <p>{a.course_name} · 截止 {new Date(a.due_at).toLocaleString("zh-CN")} · 已提交 {a.submitted_count}/{a.student_count}</p>
+          <p>{a.course_name} · 截止 {fmtCn(a.due_at)} · 已提交 {a.submitted_count}/{a.student_count}</p>
         </div>
         <Link to="/teacher/assignments" className="btn">← 返回</Link>
       </div>

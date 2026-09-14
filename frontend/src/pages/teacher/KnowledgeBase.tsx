@@ -293,6 +293,17 @@ export default function TeacherKnowledge() {
     }
   };
 
+  const removeJob = async (j: KnowledgeJob) => {
+    const label = j.filename || (j.kind === "import" ? "批量导入" : "上传");
+    if (!window.confirm(`删除这条记录「${label}」？已入库文档不受影响。`)) return;
+    try {
+      await api.delete(`/knowledge/jobs/${j.id}`);
+      jobs.refresh();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "删除失败");
+    }
+  };
+
   const reviewAction = async (id: number, action: string) => {
     setReviewBusy(true);
     try {
@@ -392,7 +403,7 @@ export default function TeacherKnowledge() {
                 <div className="small muted">{j.message || j.status}</div>
                 {j.error && <div className="small" style={{ color: "var(--danger)" }}>{j.error}</div>}
               </div>
-              <div className="row" style={{ width: 240 }}>
+              <div className="row" style={{ width: 300 }}>
                 <Progress
                   value={j.progress}
                   tone={j.status === "failed" ? "red" : j.status === "success" ? "green" : "auto"}
@@ -400,6 +411,7 @@ export default function TeacherKnowledge() {
                 <span className={`badge ${j.status === "success" ? "green" : j.status === "failed" ? "red" : j.status === "running" ? "orange" : "gray"}`}>
                   {{ success: "完成", failed: "失败", running: "处理中", pending: "排队中" }[j.status] ?? j.status}
                 </span>
+                <button className="btn btn-sm btn-danger" onClick={() => void removeJob(j)}>删除</button>
               </div>
             </div>
           ))}
@@ -520,7 +532,7 @@ export default function TeacherKnowledge() {
             <button className="btn btn-sm" onClick={importScan.refresh}>⟳ 刷新</button>
           </div>
           <p className="small muted">
-            把合法拥有的教材 PDF / txt 放进目录：<span className="mono">{importScan.data?.dir ?? "…"}</span>
+            把合法拥有的教材 PDF / txt / epub 放进目录：<span className="mono">{importScan.data?.dir ?? "…"}</span>
             ，然后在下方选择课程、勾选文件后一键导入。已导入的文件会跳过；
             文字版 PDF 秒级解析，扫描版自动 OCR（较慢）。
           </p>
@@ -784,7 +796,7 @@ export default function TeacherKnowledge() {
 
       {/* 上传文件（元数据与“编辑”一致） */}
       <Modal
-        title="上传知识文件（txt / md / pdf）"
+        title="上传知识文件（txt / md / pdf / epub）"
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
         footer={
@@ -800,7 +812,7 @@ export default function TeacherKnowledge() {
           <label>选择文件 *（支持最大 200MB，可在 backend/.env 调整 MAX_UPLOAD_MB）</label>
           <input
             type="file"
-            accept=".txt,.md,.pdf"
+            accept=".txt,.md,.markdown,.pdf,.epub,.ppt,.pptx,.doc,.docx"
             className="input"
             onChange={(e) => {
               const f = e.target.files?.[0] ?? null;
@@ -867,7 +879,7 @@ export default function TeacherKnowledge() {
           </div>
         </div>
         <p className="small muted" style={{ margin: 0 }}>
-          大文件提示：188MB 级整本教材 PDF 可直接上传（流式解析）；文字版 PDF 秒级解析，
+          大文件提示：188MB 级整本教材 PDF 或 EPUB 可直接上传（流式解析）；文字版 PDF 秒级解析，
           扫描版（图片型）PDF 会自动走 OCR 中文识别（较慢，整本可能需要数分钟到更久）。
           更快的做法是先把 PDF 按章节拆分，或先转成带文字层的版本再上传。
         </p>

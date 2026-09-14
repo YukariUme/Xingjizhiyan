@@ -14,7 +14,9 @@ Docker 不可用时返回可读错误（internal_error），不会降级为本�
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 from pathlib import Path
 
 from app.config import get_settings
@@ -112,6 +114,137 @@ _DOCKER_VERDICT_MAP = {
 
 class DockerCodeJudgeService(CodeJudgeService):
     name = "docker-sandbox"
+
+    def run(self, source_code: str, language: str = "python", stdin: str = "") -> dict:
+        """现场运行 Python 代码片段（不判题），复用断网只读沙箱。"""
+        lang = _LANG_ALIASES.get(language.lower().strip(), language.lower().strip())
+        if lang != "python":
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": "",
+                "exit_code": -1,
+                "runtime_ms": 0,
+                "engine": self.name,
+                "error": "现场运行暂支持 Python（随堂代码 Playground 面向 Python 演示）。",
+            }
+        if not source_code.strip():
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": "",
+                "exit_code": -1,
+                "runtime_ms": 0,
+                "engine": self.name,
+                "error": "代码为空，请先输入要运行的 Python 代码。",
+            }
+        docker = shutil.which("docker")
+        if not docker:
+            return self._run_local_python(source_code, stdin)
+        settings = get_settings()
+        base = Path(__file__).resolve().parent.parent.parent / "data" / "judge_work"
+        base.mkdir(parents=True, exist_ok=True)
+        workdir = Path(tempfile.mkdtemp(prefix="jbgs-playground-", dir=str(base)))
+        try:
+            (workdir / "solution.py").write_text(source_code, encoding="utf-8")
+            mem_kb = settings.judge_memory_limit_kb
+            cmd = [
+                docker, "run", "--rm",
+                "--network", "none",
+                "--read-only",
+                "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+                "--memory", f"{mem_kb}k",
+                "--cpus", str(settings.judge_docker_cpus),
+                "--pids-limit", str(settings.judge_docker_pids_limit),
+                "-i",
+                "-v", f"{str(workdir).replace(chr(92), '/')}:/sandbox",
+                "-w", "/sandbox",
+                settings.judge_docker_image_python,
+                "python3", "solution.py",
+            ]
+            start = time.monotonic()
+            proc = subprocess.run(
+                cmd,
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=settings.judge_docker_global_timeout_s,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            elapsed = int((time.monotonic() - start) * 1000)
+            return {
+                "ok": proc.returncode == 0,
+                "stdout": (proc.stdout or "")[:4000],
+                "stderr": (proc.stderr or "")[:2000],
+                "exit_code": proc.returncode,
+                "runtime_ms": elapsed,
+                "engine": "docker-sandbox",
+                "error": "",
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": "",
+                "exit_code": -1,
+                "runtime_ms": 0,
+                "engine": self.name,
+                "error": "运行超时。",
+            }
+        except Exception as exc:  # noqa: BLE001
+            return self._run_local_python(source_code, stdin)
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+    def _run_local_python(self, source_code: str, stdin: str) -> dict:
+        """Docker 不可用时的本地 Python 兜底（仅用于随堂演示，无沙箱隔离）。"""
+        base = Path(__file__).resolve().parent.parent.parent / "data" / "judge_work"
+        base.mkdir(parents=True, exist_ok=True)
+        workdir = Path(tempfile.mkdtemp(prefix="jbgs-local-py-", dir=str(base)))
+        try:
+            (workdir / "solution.py").write_text(source_code, encoding="utf-8")
+            start = time.monotonic()
+            proc = subprocess.run(
+                [sys.executable, "solution.py"],
+                cwd=workdir,
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=get_settings().judge_docker_global_timeout_s,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            elapsed = int((time.monotonic() - start) * 1000)
+            return {
+                "ok": proc.returncode == 0,
+                "stdout": (proc.stdout or "")[:4000],
+                "stderr": (proc.stderr or "")[:2000],
+                "exit_code": proc.returncode,
+                "runtime_ms": elapsed,
+                "engine": "local-python",
+                "error": "",
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": "",
+                "exit_code": -1,
+                "runtime_ms": 0,
+                "engine": "local-python",
+                "error": "运行超时。",
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": (str(exc))[:2000],
+                "exit_code": -1,
+                "runtime_ms": 0,
+                "engine": "local-python",
+                "error": f"本地运行失败：{exc}",
+            }
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
 
     def judge(self, source_code: str, language: str, test_cases: list[dict]) -> JudgeResult:
         lang = _LANG_ALIASES.get(language.lower().strip(), language.lower().strip())
@@ -252,14 +385,31 @@ class DockerCodeJudgeService(CodeJudgeService):
             elif verdict in (VERDICT_TLE, VERDICT_MLE, VERDICT_RE):
                 final_verdict = verdict
             worst_time = max(worst_time, time_ms)
+            stdin = str(tc.get("input", tc.get("stdin", "")))[:200]
+            expected = str(tc.get("output", tc.get("stdout", "")))[:200]
+            if ok:
+                actual = expected
+            elif verdict == VERDICT_TLE:
+                actual = "（运行超时）"
+            elif verdict == VERDICT_MLE:
+                actual = "（内存超限）"
+            elif verdict == VERDICT_RE:
+                err_path = workdir / f"err_{idx}.txt"
+                err = err_path.read_text(encoding="utf-8", errors="replace") if err_path.is_file() else ""
+                actual = (err or message)[:200]
+            else:
+                out_path = workdir / f"out_{idx}.txt"
+                out = out_path.read_text(encoding="utf-8", errors="replace") if out_path.is_file() else ""
+                actual = (out or "（无输出）")[:200]
             report.append(
                 TestCaseResult(
                     test_id=int(tc.get("id", idx)),
                     name=str(tc.get("name", f"测试点 {idx}")),
                     passed=ok,
                     message=message,
-                    expected=str(tc.get("output", ""))[:200],
-                    actual="通过" if ok else "未通过",
+                    input=stdin,
+                    expected=expected,
+                    actual=actual,
                     time_ms=time_ms,
                 )
             )

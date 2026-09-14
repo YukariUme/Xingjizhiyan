@@ -80,12 +80,13 @@ class GradingService:
             )
         )
         db.commit()
+        question = db.get(Question, submission.question_id)
         # 回写学习画像：批改结果进入学情分析
         AnalyticsService.update_profile_from_result(
             db,
             student_id=submission.student_id,
-            question=db.get(Question, submission.question_id),
-            correct=final_score >= (db.get(Question, submission.question_id).max_score * 0.6 if db.get(Question, submission.question_id) else 0),
+            question=question,
+            correct=final_score >= (question.max_score * 0.6 if question else 0),
             score=final_score,
         )
         db.add(
@@ -98,6 +99,7 @@ class GradingService:
             )
         )
         db.commit()
+        AnalyticsService.refresh_student_learning_state(db, submission.student_id)
         return submission
 
     def rag_search_context(self, db: Session, question: Question | None) -> str:

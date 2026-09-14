@@ -19,8 +19,11 @@ from app.api import (
     grading,
     knowledge,
     learning,
+    playground,
     planning,
     research,
+    roundtable,
+    session,
     submissions,
     workflows,
 )
@@ -91,12 +94,15 @@ def create_app() -> FastAPI:
         grading.router,
         analytics.router,
         learning.router,
+        playground.router,
         planning.router,
         demo.router,
         research.router,
+        roundtable.router,
         knowledge.router,
         ai.router,
         activities.router,
+        session.router,
         workflows.router,
     ):
         app.include_router(router)

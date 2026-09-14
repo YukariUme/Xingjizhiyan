@@ -38,6 +38,14 @@ const ENTRIES: Array<{
   },
 ];
 
+const ROLE_LABEL: Record<string, string> = { teacher: "教师", student: "学生", researcher: "科研" };
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function Landing() {
   const navigate = useNavigate();
   const { user, switchRole } = useAuth();
@@ -65,8 +73,8 @@ export default function Landing() {
   };
 
   return (
-    <div className="landing" style={{ position: "relative" }}>
-      <div style={{ position: "absolute", top: 18, right: 24, zIndex: 10 }}>
+    <div className="landing">
+      <div className="landing-nav">
         {user ? (
           <button className="btn" onClick={() => navigate(MODE_META[allowedModes(user)[0] ?? "learning"].home)}>
             {user.display_name} · 进入平台 →
@@ -77,74 +85,71 @@ export default function Landing() {
           </button>
         )}
       </div>
-      <div className="hero">
-        <span className="kicker">面向高校计算机学科的垂类大模型创新应用</span>
+
+      <section className="landing-hero">
+        <span className="landing-kicker">面向高校计算机学科的垂类大模型创新应用</span>
         <h1>星计知研 · 教学研一体化智能平台</h1>
         <p>
           让每一门计算机课程拥有自己的 AI 学习与教学空间：课程知识空间为底座，
           教学、学习、研究共享同一个专业知识底座，形成完整闭环。
         </p>
-      </div>
+        <div className="landing-actions">
+          <button className="home-cta" onClick={() => navigate("/role")}>立即体验 →</button>
+          {!user && (
+            <button className="btn" onClick={() => setAuthOpen(true)}>账号登录 / 注册</button>
+          )}
+        </div>
+      </section>
 
-      <div className="entry-grid">
+      <section className="landing-entries">
         {ENTRIES.map((e) => (
-          <div key={e.mode} className="entry-card" onClick={() => enter(e.mode)}>
-            <div className={`icon ${e.color}`}>{MODE_META[e.mode].icon}</div>
+          <button key={e.mode} className={`landing-card ${e.color}`} onClick={() => enter(e.mode)}>
+            <span className="landing-card-icon">{MODE_META[e.mode].icon}</span>
             <h3>{e.title}</h3>
             <p>{e.desc}</p>
-            <div className="features">
+            <div className="landing-card-features">
               {e.features.map((f) => (
-                <span key={f} className="tag">
-                  {f}
-                </span>
+                <span key={f} className="tag">{f}</span>
               ))}
             </div>
-            <div style={{ marginTop: 16, color: "var(--primary)", fontWeight: 600, fontSize: 13 }}>
-              {user && allowedModes(user).includes(e.mode)
-                ? `进入${MODE_META[e.mode].label}模式 →`
-                : user
-                  ? "当前身份不可进入"
-                  : "点击进入 →"}
-            </div>
-          </div>
+            <span className="landing-card-cta">进入{MODE_META[e.mode].label}模式 →</span>
+          </button>
         ))}
-      </div>
+      </section>
 
-      <div className="flow-line">
-        <div className="steps">
+      <section className="landing-flow">
+        <div className="landing-flow-title">一个专业底座，贯穿完整闭环</div>
+        <div className="landing-flow-steps">
           {["教学", "学习", "学习数据", "学情分析", "知识巩固", "科研探索"].map((s, i) => (
-            <div key={s} style={{ display: "contents" }}>
-              <span className="step">{s}</span>
-              {i < 5 && <span className="arrow">→</span>}
+            <div key={s} className="landing-flow-item">
+              <span className="landing-flow-pill">{s}</span>
+              {i < 5 && <span className="landing-flow-arrow">→</span>}
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="flow-line">
-        <div className="card">
-          <div className="card-title">
-            <h3>平台最近动态</h3>
-            <button className="btn btn-sm" onClick={() => navigate("/role")}>
-              立即体验 →
-            </button>
-          </div>
-          {activities.length === 0 ? (
-            <div className="muted small">暂无动态</div>
-          ) : (
-            activities.map((a) => (
-              <div key={a.id} className="row space-between" style={{ padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                <span>{a.title}</span>
-                <span className="small muted">
-                  {{ teacher: "教师", student: "学生", researcher: "科研" }[a.role] ?? a.role}
-                </span>
-              </div>
-            ))
-          )}
+      <section className="landing-activity">
+        <div className="landing-section-head">
+          <h3>平台最近动态</h3>
+          <button className="btn btn-sm" onClick={() => navigate("/role")}>立即体验 →</button>
         </div>
-      </div>
+        {activities.length === 0 ? (
+          <div className="muted small">暂无动态</div>
+        ) : (
+          <div className="landing-timeline">
+            {activities.map((a) => (
+              <div key={a.id} className="landing-activity-item">
+                <span className="landing-role">{ROLE_LABEL[a.role] ?? a.role}</span>
+                <span className="grow">{a.title}</span>
+                <span className="small muted">{fmtTime(a.created_at)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
-

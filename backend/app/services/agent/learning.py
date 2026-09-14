@@ -6,6 +6,7 @@ from app.models import ChatMessage, User
 from app.config import get_settings
 from app.repositories.learning_repo import LearningRepository
 from app.services.agent.base import AgentService
+from app.services.analytics_service import AnalyticsService
 from app.services.agent.teaching import _as_text, _normalize_text_list, _parse_json
 from app.services.judge.base import JudgeResult, TestCaseResult
 
@@ -88,6 +89,28 @@ class LearningAgent(AgentService):
             chapter = db.get(CourseChapter, int(chapter_id))
             context_scope += f"当前章节：{chapter.title if chapter else ''}；"
         context_scope += f"资料范围：{scope}"
+        behavior = AnalyticsService.recent_behavior_window(db, user.id, LearningRepository.list_profiles(db, user.id))
+        behavior_lines = [
+            f"最近 7 天学习记录：{behavior['record_count_7d']} 条，活跃 {behavior['active_days_7d']} 天，平均每次学习 {behavior['avg_session_sec']:.0f} 秒。",
+        ]
+        if behavior["last_answer_duration_sec"]:
+            behavior_lines.append(f"最近一次答题/学习耗时：{behavior['last_answer_duration_sec']} 秒。")
+        if behavior["wrong_streak"]:
+            behavior_lines.append(f"最近连续错题：{behavior['wrong_streak']} 次。")
+        if behavior["recent_wrong_points"]:
+            behavior_lines.append(
+                "最近错点："
+                + "、".join(f"{item['name']}({item['count']}次)" for item in behavior["recent_wrong_points"][:3])
+            )
+        if behavior["topic_counts"]:
+            behavior_lines.append(
+                "最近高频提问："
+                + "、".join(
+                    f"{topic}({count}次)" for topic, count in behavior["topic_counts"].most_common(3)
+                )
+            )
+        behavior_context = "\n".join(behavior_lines)
+        context_scope += f"\n最近行为窗口：\n{behavior_context}"
         context = (
             "\n\n".join(
                 f"- [{'主资料' if int(r.metadata.get('document_id') or 0) in primary_set else '背景资料'}] "
@@ -98,7 +121,12 @@ class LearningAgent(AgentService):
             else ""
         )
         system, prompt = self.prompts.tutor(
-            message, history, context, mode, grounded, context_scope,
+            message,
+            history,
+            context,
+            mode,
+            grounded,
+            context_scope,
             teaching=teaching,
             primary_title=primary_titles[0] if primary_titles else "",
             answer_style=answer_style,
@@ -110,7 +138,12 @@ class LearningAgent(AgentService):
             r.topic for r in hits if r.topic
         ]
         # 来源引用只允许来自实际命中的知识库文档，不信任模型自报的引用
-        references = [r.document_title for r in hits] if grounded else []
+        references = [
+            f"[{r.metadata.get('source_level', 'S')}] {r.document_title}"
+            + (f" · {r.document_source}" if r.document_source else "")
+            + (f" · 第 {r.metadata.get('page')} 页" if r.metadata.get('page') else "")
+            for r in hits
+        ] if grounded else []
 
         # 保存对话历史（用户 + 助手）
         LearningRepository.add_message(
@@ -142,8 +175,6 @@ class LearningAgent(AgentService):
             "grounded": grounded,
             "confidence": round(hits[0].score, 4) if hits else 0.0,
         }
-
-    @staticmethod
     def _fallback_answer(message: str, mode: str, hits, grounded: bool) -> str:
         if mode == "hint":
             return (
@@ -262,11 +293,27 @@ class LearningAgent(AgentService):
         )
         raw = self.llm.generate(prompt, system=system)
         parsed = _parse_json(raw)
+        line_anchors = []
+        for item in parsed.get("line_anchors") or []:
+            if isinstance(item, dict):
+                try:
+                    line = int(item.get("line") or item.get("lineno") or 0)
+                except (TypeError, ValueError):
+                    line = 0
+                note = _as_text(item.get("note") or item.get("reason") or item.get("description"))
+                if line > 0:
+                    line_anchors.append({"line": line, "note": note})
+            elif isinstance(item, (int, str)):
+                try:
+                    line_anchors.append({"line": int(item), "note": ""})
+                except (TypeError, ValueError):
+                    continue
         return {
             "error_reason": _as_text(parsed.get("error_reason")) or "评测未通过，请结合测试点信息排查。",
             "knowledge_points": _normalize_text_list(parsed.get("knowledge_points")),
             "thinking": _normalize_text_list(parsed.get("thinking")),
             "advice": _normalize_text_list(parsed.get("advice")),
             "suggestion": _as_text(parsed.get("suggestion")),
+            "line_anchors": line_anchors,
             "mode": mode,
         }

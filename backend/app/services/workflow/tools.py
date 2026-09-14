@@ -163,6 +163,7 @@ def tool_judge_run(db: Session, context: dict, params: dict) -> dict:
                 "name": r.name,
                 "passed": r.passed,
                 "message": r.message,
+                "input": r.input,
                 "expected": r.expected,
                 "actual": r.actual,
                 "time_ms": r.time_ms,

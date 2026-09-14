@@ -25,8 +25,14 @@ from app.models.knowledge import (
 )
 from app.models.learning import (
     ChatMessage,
+    LearningSession,
     LearningRecommendation,
     StudentKnowledgeProfile,
+)
+from app.models.learning_state import (
+    LearningProgressComparison,
+    StudentLearningState,
+    TeacherSuggestionDecision,
 )
 from app.models.research import Paper, PaperReading, ResearchTopic
 from app.models.submission import (
@@ -60,8 +66,10 @@ __all__ = [
     "KnowledgeReview",
     "LearningPlan",
     "LearningRecord",
+    "LearningSession",
     "LearningTask",
     "LearningRecommendation",
+    "LearningProgressComparison",
     "LessonPlan",
     "Paper",
     "PaperReading",
@@ -72,8 +80,10 @@ __all__ = [
     "ResearchDocument",
     "ResearchTopic",
     "StudentKnowledgeProfile",
+    "StudentLearningState",
     "Submission",
     "SubjectiveSubmission",
+    "TeacherSuggestionDecision",
     "User",
     "UserResearchProfile",
     "WorkflowRun",

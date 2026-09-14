@@ -29,6 +29,7 @@ from app.services.parsing.blocks import BlockType, ParsedDocument, StructuredBlo
 from app.services.parsing.code import detect_code_language, looks_like_code
 from app.services.parsing.formula import FormulaExtractor
 from app.services.parsing.layout import LayoutService
+from app.services.parsing.epub import parse_epub
 from app.services.parsing.office import parse_office
 from app.services.parsing.table import extract_table_rapid, extract_tables_pdfplumber
 
@@ -46,13 +47,17 @@ def parse_document_file(
     ext = path.suffix.lower()
     if ext in {".txt", ".md", ".markdown"}:
         return _parse_text(path)
+    if ext == ".epub":
+        parsed = parse_epub(path, progress=progress)
+        _report(progress, 100, "EPUB 解析完成")
+        return parsed
     if ext in {".pptx", ".docx", ".ppt", ".doc"}:
         parsed = parse_office(path)
         _report(progress, 100, "Office 解析完成")
         return parsed
     if ext == ".pdf":
         return _parse_pdf(path, progress=progress, ocr_provider=ocr_provider)
-    raise ValueError(f"不支持的文件类型：{ext}（仅支持 txt / md / pdf / pptx / docx）")
+    raise ValueError(f"不支持的文件类型：{ext}（仅支持 txt / md / markdown / pdf / epub / pptx / docx）")
 
 
 def extract_plain_text(path: Path, progress: ProgressCallback | None = None) -> str:

@@ -210,8 +210,13 @@ export default function ResearchWorkbench() {
         }
       >
         <div className="field">
-          <label>选择文件（pdf / txt / md）</label>
-          <input type="file" accept=".pdf,.txt,.md" className="input" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)} />
+          <label>选择文件（pdf / txt / md / epub）</label>
+          <input
+            type="file"
+            accept=".txt,.md,.markdown,.pdf,.epub,.ppt,.pptx,.doc,.docx"
+            className="input"
+            onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+          />
         </div>
         <div className="field">
           <label>标题（留空使用文件名）</label>

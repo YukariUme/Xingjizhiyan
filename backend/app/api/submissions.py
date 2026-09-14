@@ -15,6 +15,7 @@ from app.models import (
 from app.repositories.assignment_repo import AssignmentRepository
 from app.repositories.course_repo import CourseRepository
 from app.repositories.submission_repo import SubmissionRepository
+from app.services.analytics_service import AnalyticsService
 from app.services.workflow.service import WorkflowService
 
 router = APIRouter(prefix="/api", tags=["submissions"])
@@ -105,6 +106,7 @@ def submit_answer(
         if run.status == "failed":
             raise HTTPException(status_code=500, detail=run.error)
         judge_out = run.output_json.get("judge", {})
+        AnalyticsService.refresh_student_learning_state(db, user.id)
         return {
             "submission_id": submission.id,
             "verdict": judge_out.get("verdict"),
@@ -154,6 +156,7 @@ def submit_answer(
     )
     if run.status == "failed":
         raise HTTPException(status_code=500, detail=run.error)
+    AnalyticsService.refresh_student_learning_state(db, user.id)
     return {
         "submission_id": submission.id,
         "status": submission.status,

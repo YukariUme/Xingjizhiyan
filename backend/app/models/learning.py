@@ -60,3 +60,31 @@ class ChatMessage(Base):
     knowledge_points: Mapped[list] = mapped_column(JSON, default=list)
     references: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class LearningSession(Base):
+    """一条可重复的自学链：围绕单个知识点生成有序交互步骤。
+
+    与 LessonPlan（教师备课大纲）不同，本对象面向学生自学：
+    steps 为有序的交互步骤（goal/warmup/explain/visualize/code/practice/check/wrapup），
+    可针对任意知识点复用，深度三档（quick/standard/deep），每次运行可留痕、可回看。
+    """
+
+    __tablename__ = "learning_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), index=True)
+    chapter_id: Mapped[int | None] = mapped_column(ForeignKey("course_chapters.id"), nullable=True)
+    knowledge_point_id: Mapped[int | None] = mapped_column(
+        ForeignKey("knowledge_points.id"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(256), default="")
+    depth: Mapped[str] = mapped_column(String(16), default="standard")  # quick | standard | deep
+    mode: Mapped[str] = mapped_column(String(16), default="learn")  # learn | preview | review
+    steps: Mapped[list] = mapped_column(JSON, default=list)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)  # provider/references/ai 标签
+    current_index: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | completed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

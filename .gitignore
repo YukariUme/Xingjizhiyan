@@ -33,3 +33,14 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# 复现仓库无关文件：本地教材/赛题资料与提交产物
+*.pdf
+*.xlsx
+*.docx
+jbgs.code-workspace
+*.pdf
+*.xlsx
+*.docx
+jbgs.code-workspace
+README_作品Demo.md
+伦理与安全合规性声明.md

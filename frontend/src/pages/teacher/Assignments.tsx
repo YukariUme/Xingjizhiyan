@@ -6,6 +6,12 @@ import { api } from "../../api";
 import { Card, EmptyState, Loading, Modal, useAsync } from "../../components/ui";
 import type { Assignment, Course } from "../../types";
 
+function fmtCn(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 interface QuestionForm {
   qtype: string;
   title: string;
@@ -107,7 +113,7 @@ export default function TeacherAssignments() {
               </div>
               <div className="row space-between">
                 <div className="small muted">
-                  截止 {new Date(a.due_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit" })} · 已提交 {a.submitted_count}/{a.student_count}
+                  截止 {fmtCn(a.due_at)} · 已提交 {a.submitted_count}/{a.student_count}
                 </div>
                 <Link to={`/teacher/assignments/${a.id}`} className="btn btn-sm btn-primary">查看提交</Link>
               </div>
@@ -150,6 +156,7 @@ export default function TeacherAssignments() {
           <div className="field">
             <label>截止时间</label>
             <input type="datetime-local" className="input" value={form.due_at.slice(0, 16)} onChange={(e) => setForm({ ...form, due_at: new Date(e.target.value).toISOString() })} />
+            {form.due_at && <div className="small muted mt-8">{fmtCn(form.due_at)}</div>}
           </div>
         </div>
 

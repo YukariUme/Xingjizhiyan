@@ -19,6 +19,7 @@ ALLOWED_IMPORT_SUFFIXES = {
     ".md",
     ".markdown",
     ".pdf",
+    ".epub",
     ".ppt",
     ".pptx",
     ".doc",
@@ -31,6 +32,8 @@ def validate_upload_header(filename: str, head: bytes) -> None:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext == "pdf" and not head.startswith(b"%PDF"):
         raise ValueError("文件头无效：不是有效的 PDF 文件")
+    if ext == "epub" and not head.startswith(b"PK"):
+        raise ValueError("文件头无效：不是有效的 EPUB 文件")
     if ext in {"pptx", "docx"} and not head.startswith(b"PK"):
         raise ValueError("文件头无效：不是有效的 Office 文档（请确认未损坏）")
     if ext in {"txt", "md", "markdown"}:
@@ -84,7 +87,7 @@ def _ocr_pdf_text(path: Path) -> str:
 
 
 def extract_text_file(path: Path) -> str:
-    """从 txt / md / pdf / pptx / docx 中提取文本（上传与目录批量导入共用）。
+    """从 txt / md / markdown / pdf / epub / pptx / docx 中提取文本（上传与目录批量导入共用）。
 
     PDF 走结构化解析管线：文字层保留表格，扫描层走 Layout + OCR；
     返回合并后的纯文本（结构化块另由 parse_document_file 提供）。
@@ -110,7 +113,9 @@ def extract_text_file(path: Path) -> str:
                 raise ValueError("扫描版 PDF 未启用 OCR（PDF_OCR_ENABLED=false）")
             return text
         return parse_document_file(path).to_text()
-    raise ValueError(f"不支持的文件类型：{ext}（仅支持 txt / md / pdf）")
+    if ext == ".epub":
+        return parse_document_file(path).to_text()
+    raise ValueError(f"不支持的文件类型：{ext}（仅支持 txt / md / markdown / pdf / epub / pptx / docx）")
 
 
 def _extract_office_text(path: Path, ext: str) -> str:

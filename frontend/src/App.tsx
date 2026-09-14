@@ -25,6 +25,8 @@ const StudentAssignmentDetail = lazy(() => import("./pages/student/AssignmentDet
 const StudentLearning = lazy(() => import("./pages/student/LearningCenter"));
 const StudentTutor = lazy(() => import("./pages/student/Tutor"));
 const CourseSpace = lazy(() => import("./pages/learn/CourseSpace"));
+const DataStructureDemo = lazy(() => import("./pages/DataStructureDemo"));
+const Roundtable = lazy(() => import("./pages/Roundtable"));
 const ResearchWorkbench = lazy(() => import("./pages/research/Workbench"));
 const ResearchPapers = lazy(() => import("./pages/research/Papers"));
 const ResearchExplore = lazy(() => import("./pages/research/Explore"));
@@ -59,6 +61,8 @@ export default function App() {
           <Route path="/learn" element={<StudentHome />} />
           <Route path="/learn/courses" element={<StudentCourses />} />
           <Route path="/learn/courses/:courseId" element={<CourseSpace />} />
+          <Route path="/learn/animation" element={<DataStructureDemo />} />
+          <Route path="/learn/roundtable" element={<Roundtable />} />
           <Route path="/learn/assignments" element={<StudentAssignments />} />
           <Route path="/learn/assignments/:id" element={<StudentAssignmentDetail />} />
           <Route path="/learn/center" element={<StudentLearning />} />

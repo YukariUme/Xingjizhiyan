@@ -1,16 +1,16 @@
-"""学习中心路由：AI 学科导师、代码诊断、学习画像与个性化路径。"""
+﻿"""学习中心路由：AI 学科导师、代码诊断、学习画像与个性化路径。"""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.database import get_db
-from app.models import User
+from app.models import ChatMessage, User
 from app.repositories.learning_repo import LearningRepository
-from app.models import ChatMessage
 from app.schemas.learning import DiagnosisIn, TutorChatIn
 from app.services.agent.factory import get_agent_service
 from app.services.learning_path_service import LearningPathService
+from app.services.learning_state_service import LearningStateEngine
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])
 
@@ -94,7 +94,27 @@ def learning_profile(
 ) -> dict:
     from app.services.analytics_service import AnalyticsService
 
-    return AnalyticsService.student_profile(db, user.id)
+    profile = AnalyticsService.student_profile(db, user.id)
+    states = LearningStateEngine.list_states(db, user.id)
+    comparisons = LearningStateEngine.list_comparisons(db, user.id, limit=10)
+    profile["learning_states"] = [LearningStateEngine.serialize_state(db, s) for s in states]
+    profile["progress_comparisons"] = [LearningStateEngine.serialize_comparison(db, c) for c in comparisons]
+    return profile
+
+
+@router.get("/state")
+def learning_state(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if user.role != "student":
+        return {"states": [], "comparisons": []}
+    states = LearningStateEngine.list_states(db, user.id)
+    comparisons = LearningStateEngine.list_comparisons(db, user.id, limit=20)
+    return {
+        "states": [LearningStateEngine.serialize_state(db, s) for s in states],
+        "comparisons": [LearningStateEngine.serialize_comparison(db, c) for c in comparisons],
+    }
 
 
 @router.get("/recommendations")
@@ -102,10 +122,8 @@ def recommendations(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    """返回（并按需生成）个性化学习路径。"""
-    items = LearningRepository.list_recommendations(db, user.id)
-    if not items:
-        items = LearningPathService.generate(db, user.id)
+    """返回并刷新个性化学习路径。"""
+    items = LearningPathService.generate(db, user.id)
     from app.models import KnowledgePoint
 
     return [

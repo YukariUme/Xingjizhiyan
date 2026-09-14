@@ -16,6 +16,7 @@ class TestCaseResult:
     name: str
     passed: bool
     message: str = ""
+    input: str = ""
     expected: str = ""
     actual: str = ""
     time_ms: int = 0
@@ -50,3 +51,18 @@ class CodeJudgeService(ABC):
     ) -> JudgeResult:
         """评测源代码并返回统一结果。"""
         raise NotImplementedError
+
+    def run(self, source_code: str, language: str = "python", stdin: str = "") -> dict:
+        """现场运行代码片段（不判题）：返回 {ok, stdout, stderr, exit_code, runtime_ms, error}。
+
+        默认实现表示不支持；Docker/Mock 实现覆盖本方法。
+        """
+        return {
+            "ok": False,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "runtime_ms": 0,
+            "engine": self.name,
+            "error": "当前判题服务不支持现场运行代码。",
+        }

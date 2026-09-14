@@ -141,7 +141,9 @@ knowledge_points（涉及知识点列表）、errors（错误与不足列表）�
 {source_code}
 
 请输出 JSON，字段：error_reason（错误原因）、knowledge_points（知识点列表）、
-thinking（分析思路列表）、advice（学习建议列表）、suggestion（提示模式的引导语）。
+thinking（分析思路列表）、advice（学习建议列表）、suggestion（提示模式的引导语）、
+line_anchors（行级定位数组，每项含 line（整数行号）与 note（该行问题说明），
+用于前端高亮代码行；无明确行级问题时返回空数组）。
 """
         return system, prompt
 

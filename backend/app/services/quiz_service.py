@@ -246,6 +246,7 @@ def submit_quiz(db: Session, quiz_id: int, student: User, answers: list[dict]) -
     db.add(result)
     db.commit()
     db.refresh(result)
+    AnalyticsService.refresh_student_learning_state(db, student.id)
     return {
         "result_id": result.id,
         "score": result.score,

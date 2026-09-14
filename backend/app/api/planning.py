@@ -31,6 +31,19 @@ def list_lesson_plans(
     return [LessonPlanOut.model_validate(p) for p in plans]
 
 
+@router.delete("")
+def delete_all_lesson_plans(
+    user: User = Depends(require_roles("teacher")),
+    db: Session = Depends(get_db),
+) -> dict:
+    """清空自己的全部历史教案。"""
+    db.query(LessonPlan).filter(LessonPlan.teacher_id == user.id).delete(
+        synchronize_session=False
+    )
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/{plan_id}", response_model=LessonPlanOut)
 def get_lesson_plan(
     plan_id: int,
@@ -50,4 +63,3 @@ def delete_lesson_plan(
     db.delete(plan)
     db.commit()
     return {"ok": True}
-

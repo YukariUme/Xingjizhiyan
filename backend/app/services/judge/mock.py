@@ -15,6 +15,18 @@ SUPPORTED_LANGUAGES = {"python", "java", "c", "cpp", "c++", "javascript", "js", 
 class MockCodeJudgeService(CodeJudgeService):
     name = "mock"
 
+    def run(self, source_code: str, language: str = "python", stdin: str = "") -> dict:
+        """演示模式的现场运行：不执行任意代码，返回确定性的可读结果。"""
+        return {
+            "ok": True,
+            "stdout": f"（Mock 运行）已接收 Python 代码（{len(source_code)} 字符）与输入（{len(stdin)} 字符）。\n接入 Docker 后此处返回真实 stdout。",
+            "stderr": "",
+            "exit_code": 0,
+            "runtime_ms": 5,
+            "engine": "mock",
+            "error": "",
+        }
+
     def judge(
         self,
         source_code: str,

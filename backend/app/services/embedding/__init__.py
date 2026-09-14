@@ -1,8 +1,23 @@
 """Embedding 抽象层：接口 + 工厂（hash / fastembed / auto）。"""
 
+import logging
+
 from app.config import get_settings
 from app.services.embedding.base import EmbeddingService, HashEmbeddingService
 from app.services.embedding.fastembed_service import FastEmbeddingService
+
+logger = logging.getLogger(__name__)
+
+
+def _fastembed_or_hash() -> EmbeddingService:
+    """优先真实 Embedding；fastembed 未安装时回退确定性哈希，保证离线可演示。"""
+    try:
+        import fastembed  # noqa: F401
+
+        return FastEmbeddingService()
+    except ImportError:
+        logger.info("fastembed 未安装，Embedding 回退为 HashEmbeddingService。")
+        return HashEmbeddingService()
 
 
 def get_embedding_service() -> EmbeddingService:
@@ -18,9 +33,7 @@ def get_embedding_service() -> EmbeddingService:
     provider = get_settings().embedding_provider.lower()
     if provider == "hash":
         return HashEmbeddingService()
-    if provider == "fastembed":
-        return FastEmbeddingService()
-    return FastEmbeddingService()
+    return _fastembed_or_hash()
 
 
 __all__ = ["EmbeddingService", "HashEmbeddingService", "FastEmbeddingService", "get_embedding_service"]

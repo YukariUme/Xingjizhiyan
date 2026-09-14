@@ -410,10 +410,10 @@ async def upload_research_document(
 
     filename = file.filename or "未命名资料"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in {"txt", "md", "markdown", "pdf", "ppt", "pptx", "doc", "docx"}:
+    if ext not in {"txt", "md", "markdown", "pdf", "epub", "ppt", "pptx", "doc", "docx"}:
         raise HTTPException(
             status_code=400,
-            detail="仅支持 txt / md / pdf / pptx / docx 文件",
+            detail="仅支持 txt / md / pdf / epub / pptx / docx 文件",
         )
     folder = Path(get_settings().knowledge_files_dir) / "_research"
     folder.mkdir(parents=True, exist_ok=True)

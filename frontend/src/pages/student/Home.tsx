@@ -1,11 +1,38 @@
-/** 学生首页。 */
+/** 学生首页：编辑式布局，轻卡片 + 渐变点缀。 */
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
-import { Card, Loading, Progress, StatCard, useAsync } from "../../components/ui";
+import { Loading, Progress, useAsync } from "../../components/ui";
 import type { Activity, Assignment, CourseInvitation, MySubmission, Recommendation, StudentProfile } from "../../types";
 
+interface MyCourse {
+  id: number;
+  name: string;
+  progress: number;
+  mastery: number;
+  current_chapter: { id: number; title: string } | null;
+  pending_tasks: number;
+  weak_points: string[];
+}
+
+const ROLE_LABEL: Record<string, string> = { teacher: "教师", student: "学生", researcher: "科研" };
+const RES_TYPE: Record<string, string> = {
+  chapter: "复习",
+  exercise: "练习",
+  experiment: "实验",
+  paper: "论文",
+  next: "进阶",
+};
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function StudentHome() {
+  const navigate = useNavigate();
+  const courses = useAsync<MyCourse[]>(() => api.get("/curriculum/courses"));
   const assignments = useAsync<Assignment[]>(() => api.get("/assignments"));
   const submissions = useAsync<MySubmission[]>(() => api.get("/me/submissions"));
   const profile = useAsync<StudentProfile>(() => api.get("/analytics/me"));
@@ -14,10 +41,14 @@ export default function StudentHome() {
   const invitations = useAsync<CourseInvitation[]>(() => api.get("/course-invitations"));
 
   if (assignments.loading || submissions.loading) return <Loading />;
+
   const pending = assignments.data?.length ?? 0;
-  const done = submissions.data?.filter((s) => s.teacher_reviewed || s.verdict === "accepted").length ?? 0;
   const recentScores = submissions.data?.filter((s) => s.score != null).slice(0, 5) ?? [];
   const weak = profile.data?.weak_points ?? [];
+  const weakItems = (profile.data?.knowledge ?? []).filter((k) => k.mastery < 60).slice(0, 5);
+  const avgMastery = profile.data?.avg_mastery ?? 0;
+  const firstCourse = courses.data?.[0];
+
   const respond = async (inv: CourseInvitation, action: "accept" | "decline") => {
     try {
       await api.post(`/course-invitations/${inv.id}/${action}`, {});
@@ -28,107 +59,131 @@ export default function StudentHome() {
   };
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>我的学习空间</h1>
-          <p>学习 → 作业 → 自动评测 → 错误诊断 → 个性化路径，AI 全程陪伴</p>
+    <div className="page home-page">
+      <section className="home-hero">
+        <div className="home-hero-copy">
+          <span className="home-kicker">星计知研 · 学习空间</span>
+          <h1>把今天该学的，一步讲清楚</h1>
+          <p>从知识点到动图、代码与练习，AI 陪你把薄弱点逐个补上。</p>
         </div>
-        <Link to="/learn/tutor" className="btn btn-primary">✉ 问 AI 导师</Link>
-      </div>
+        <button
+          className="home-cta"
+          onClick={() => navigate(firstCourse ? `/learn/courses/${firstCourse.id}` : "/learn/courses")}
+        >
+          继续学习 →
+        </button>
+      </section>
 
-      <div className="grid grid-4 mb-16">
-        <StatCard label="待完成作业" value={pending} hint="已发布" />
-        <StatCard label="已完成任务" value={done} hint="含已确认成绩" />
-        <StatCard label="薄弱知识点" value={weak.length} hint="掌握度低于 60%" color={weak.length ? "var(--warning)" : "var(--success)"} />
-        <StatCard label="平均掌握度" value={`${profile.data?.avg_mastery ?? 0}%`} hint="基于知识画像" />
-      </div>
+      <section className="home-metrics">
+        <div className="home-metric"><b>{pending}</b><span>待完成作业</span></div>
+        <div className="home-metric"><b>{avgMastery}%</b><span>平均掌握度</span></div>
+        <div className="home-metric"><b>{weak.length}</b><span>薄弱知识点</span></div>
+        <div className="home-metric"><b>{invitations.data?.length ?? 0}</b><span>待处理邀请</span></div>
+      </section>
 
       {(invitations.data?.length ?? 0) > 0 && (
-        <div className="grid mb-16">
-          <Card title="课程邀请（待你确认）">
-            {invitations.data?.map((inv) => (
-              <div key={inv.id} className="row space-between" style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div>
-                  <b>{inv.course_name}</b>
-                  <div className="small muted">
-                    {inv.course_code} · {inv.semester} · 邀请人 {inv.teacher_name}
-                  </div>
-                </div>
-                <div className="row">
-                  <button className="btn btn-sm btn-primary" onClick={() => void respond(inv, "accept")}>
-                    接受
-                  </button>
-                  <button className="btn btn-sm" onClick={() => void respond(inv, "decline")}>
-                    拒绝
-                  </button>
-                </div>
+        <section className="home-invites">
+          <h2 className="home-section-title">课程邀请</h2>
+          {invitations.data?.map((inv) => (
+            <div className="home-item" key={inv.id}>
+              <div className="grow">
+                <b>{inv.course_name}</b>
+                <div className="small muted">{inv.course_code} · {inv.semester} · 邀请人 {inv.teacher_name}</div>
               </div>
-            ))}
-          </Card>
-        </div>
+              <div className="row">
+                <button className="btn btn-sm btn-primary" onClick={() => void respond(inv, "accept")}>接受</button>
+                <button className="btn btn-sm" onClick={() => void respond(inv, "decline")}>拒绝</button>
+              </div>
+            </div>
+          ))}
+        </section>
       )}
 
-      <div className="grid grid-2">
-        <Card title="最近成绩" extra={<Link to="/learn/assignments" className="btn btn-sm">作业中心</Link>}>
-          {recentScores.length === 0 ? (
-            <div className="muted small">暂无正式成绩（教师确认后可见）</div>
-          ) : (
-            recentScores.map((s) => (
-              <div key={s.submission_id} className="row space-between" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-                <span>{s.question_title}</span>
-                <b style={{ color: "var(--success)" }}>{s.score} 分</b>
-              </div>
-            ))
-          )}
-        </Card>
+      <div className="home-grid">
+        <div>
+          <section className="home-section">
+            <h2 className="home-section-title">我的课程</h2>
+            {courses.data?.length ? (
+              courses.data.slice(0, 4).map((c) => (
+                <div className="home-course" key={c.id}>
+                  <div className="row space-between">
+                    <div>
+                      <Link className="home-course-name" to={`/learn/courses/${c.id}`}>{c.name}</Link>
+                      <div className="small muted">{c.current_chapter?.title ?? "尚未开始"}</div>
+                    </div>
+                    <span className="small muted">{c.mastery}%</span>
+                  </div>
+                  <div className="home-progress"><span style={{ width: `${c.progress}%` }} /></div>
+                </div>
+              ))
+            ) : (
+              <div className="muted small">还没有课程，去“我的课程”加入吧。</div>
+            )}
+          </section>
 
-        <Card title="薄弱知识点" extra={<Link to="/learn/center" className="btn btn-sm">学习中心</Link>}>
-          {weak.length === 0 ? (
-            <div className="empty">
-              <div className="emoji">🎉</div>
-              <div>没有明显薄弱知识点</div>
-            </div>
-          ) : (
-            (profile.data?.knowledge.filter((k) => k.mastery < 60) ?? []).slice(0, 5).map((k) => (
-              <div key={k.knowledge_point_id} className="row space-between" style={{ padding: "8px 0" }}>
-                <div>
-                  <b>{k.knowledge_point}</b>
-                  <div className="small muted">{k.subject} · {k.attempts} 次作答</div>
+          <section className="home-section">
+            <h2 className="home-section-title">最近成绩</h2>
+            {recentScores.length === 0 ? (
+              <div className="muted small">暂无正式成绩（教师确认后可见）</div>
+            ) : (
+              recentScores.map((s) => (
+                <div className="home-item" key={s.submission_id}>
+                  <span>{s.question_title}</span>
+                  <b style={{ color: "var(--success)" }}>{s.score} 分</b>
                 </div>
-                <div className="row" style={{ width: 160 }}>
-                  <Progress value={k.mastery} tone="auto" />
-                  <span className="small">{k.mastery}%</span>
+              ))
+            )}
+          </section>
+        </div>
+
+        <div>
+          <section className="home-section">
+            <h2 className="home-section-title">下一步建议</h2>
+            {(recs.data ?? []).slice(0, 5).map((r) => (
+              <div className="home-item" key={r.id}>
+                <div className="grow">
+                  <b>{r.resource_title}</b>
+                  <div className="small muted">{r.reason}</div>
                 </div>
+                <span className="home-tag">{RES_TYPE[r.resource_type] ?? r.resource_type}</span>
               </div>
-            ))
-          )}
-        </Card>
+            ))}
+          </section>
+
+          <section className="home-section">
+            <h2 className="home-section-title">薄弱知识点</h2>
+            {weakItems.length === 0 ? (
+              <div className="home-ok">没有明显薄弱点，保持节奏。</div>
+            ) : (
+              weakItems.map((k) => (
+                <div className="home-item" key={k.knowledge_point_id}>
+                  <div className="grow">
+                    <b>{k.knowledge_point}</b>
+                    <div className="small muted">{k.subject} · {k.attempts} 次作答</div>
+                  </div>
+                  <div className="row" style={{ width: 160 }}>
+                    <Progress value={k.mastery} tone="auto" />
+                    <span className="small">{k.mastery}%</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </section>
+        </div>
       </div>
 
-      <div className="grid grid-2 mt-16">
-        <Card title="个性化学习推荐" extra={<Link to="/learn/center" className="btn btn-sm">查看全部</Link>}>
-          {(recs.data ?? []).slice(0, 5).map((r) => (
-            <div key={r.id} className="row space-between" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-              <div>
-                <b>{r.resource_title}</b>
-                <div className="small muted">{r.reason}</div>
-              </div>
-              <span className="badge purple">
-                {{ chapter: "复习", exercise: "练习", experiment: "实验", paper: "论文", next: "进阶" }[r.resource_type] ?? r.resource_type}
-              </span>
-            </div>
-          ))}
-        </Card>
-
-        <Card title="最近动态">
+      <section className="home-section">
+        <h2 className="home-section-title">最近动态</h2>
+        <div className="home-timeline">
           {activities.data?.map((a) => (
-            <div key={a.id} className="small" style={{ padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-              {a.title}
+            <div className="home-activity" key={a.id}>
+              <span className="home-role">{ROLE_LABEL[a.role] ?? a.role}</span>
+              <span className="grow">{a.title}</span>
+              <span className="small muted">{fmtTime(a.created_at)}</span>
             </div>
           ))}
-        </Card>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

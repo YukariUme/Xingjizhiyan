@@ -41,6 +41,17 @@ LEARNING_STEPS = [
     {"id": "exam", "label": "⑧ 考前模拟", "path": "/learn/courses/:os?tab=exam"},
 ]
 
+DATA_STRUCTURE_STEPS = [
+    {"id": "ds_stack", "label": "① 栈 Stack", "path": "/learn/animation?ds=stack"},
+    {"id": "ds_queue", "label": "② 队列 Queue", "path": "/learn/animation?ds=queue"},
+    {"id": "ds_list", "label": "③ 链表 Linked List", "path": "/learn/animation?ds=list"},
+    {"id": "ds_bst", "label": "④ 二叉搜索树 BST", "path": "/learn/animation?ds=bst"},
+]
+
+ROUNDTABLE_STEPS = [
+    {"id": "roundtable_discuss", "label": "① AI 圆桌讨论", "path": "/learn/roundtable"},
+]
+
 SCENARIOS = [
     {
         "id": "teaching_learning_research",
@@ -65,6 +76,22 @@ SCENARIOS = [
         "initial_role": "student",
         "description": "预习 → AI 课程讲堂 → 作业 → 代码评测 → 错误诊断 → 复习 → 考前模拟",
         "steps": LEARNING_STEPS,
+    },
+    {
+        "id": "data_structure",
+        "name": "数据结构动画演示",
+        "course": "数据结构",
+        "initial_role": "student",
+        "description": "约 1 分钟：栈 → 队列 → 链表 → 二叉搜索树，逐步动画演示经典数据结构",
+        "steps": DATA_STRUCTURE_STEPS,
+    },
+    {
+        "id": "roundtable",
+        "name": "AI 圆桌讨论",
+        "course": "数据结构",
+        "initial_role": "student",
+        "description": "多个 AI 角色就一个计算机学科问题，从不同角度辩论 + 白板呈现观点",
+        "steps": ROUNDTABLE_STEPS,
     },
 ]
 
@@ -288,7 +315,10 @@ def preset_tutor() -> dict:
         "所以三个信号量各司其职：empty 管“能不能放”，full 管“能不能取”，mutex 管“同一时刻只能一个人动缓冲区”。\n"
         "回答主要依据课程官方资料。",
         "knowledge_points": ["信号量", "同步", "生产者—消费者"],
-        "references": [DEMO_REFERENCES[0]["source"], DEMO_REFERENCES[1]["source"]],
+        "references": [
+            f"[{DEMO_REFERENCES[0]['source_level']}] {DEMO_REFERENCES[0]['title']} · {DEMO_REFERENCES[0]['source']} · 第 {DEMO_REFERENCES[0]['page']} 页",
+            f"[{DEMO_REFERENCES[1]['source_level']}] {DEMO_REFERENCES[1]['title']} · {DEMO_REFERENCES[1]['source']} · 第 {DEMO_REFERENCES[1]['page']} 页",
+        ],
         "mode": "hint",
         "grounded": True,
         "confidence": 0.79,
@@ -310,6 +340,10 @@ def preset_code_diagnosis() -> dict:
             "先画执行流程图再对照代码，重点检查阻塞分支",
         ],
         "suggestion": "先复习信号量与生产者—消费者问题，再重写消费者中 P/V 的顺序。",
+        "line_anchors": [
+            {"line": 8, "note": "消费者先 P(mutex) 再 P(full)，缓冲区为空时会持锁等待，导致死锁。"},
+            {"line": 10, "note": "访问 buffer 前应先确认已通过 full 信号量取得数据。"},
+        ],
         "mode": "hint",
         "provider": "demo",
     }

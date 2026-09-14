@@ -224,10 +224,10 @@ async def upload_document(
     """
     filename = file.filename or "未命名文档"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in {"txt", "md", "markdown", "pdf", "ppt", "pptx", "doc", "docx"}:
+    if ext not in {"txt", "md", "markdown", "pdf", "epub", "ppt", "pptx", "doc", "docx"}:
         raise HTTPException(
             status_code=400,
-            detail="仅支持 txt / md / pdf / pptx / docx 文件（旧版 .ppt/.doc 请另存为新格式）",
+            detail="仅支持 txt / md / pdf / epub / pptx / docx 文件（旧版 .ppt/.doc 请另存为新格式）",
         )
     max_bytes = get_settings().max_upload_mb * 1024 * 1024
 
@@ -389,6 +389,21 @@ def list_jobs(
         }
         for j in jobs
     ]
+
+
+@router.delete("/jobs/{job_id}")
+def delete_job(
+    job_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """删除自己的一条知识库上传/导入记录（不删除已入库的文档）。"""
+    job = db.get(KnowledgeJob, job_id)
+    if not job or job.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    db.delete(job)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/reviews")

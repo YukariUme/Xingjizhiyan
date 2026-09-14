@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { MODE_META, allowedModes, modeLabel, type Mode } from "../modes";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { DemoEntryButton, DemoStatusBar } from "./DemoBar";
+import TutorBall from "./TutorBall";
 
 const NAV: Record<Mode, Array<{ to: string; label: string; icon: string }>> = {
   teaching: [
@@ -22,7 +23,6 @@ const NAV: Record<Mode, Array<{ to: string; label: string; icon: string }>> = {
     { to: "/learn", label: "首页", icon: "⌂" },
     { to: "/learn/courses", label: "我的课程", icon: "▤" },
     { to: "/learn/center", label: "学习中心", icon: "◔" },
-    { to: "/learn/tutor", label: "AI 学科导师", icon: "✉" },
     { to: "/research", label: "研究空间", icon: "🔬" },
   ],
   research: [
@@ -140,6 +140,7 @@ export function Layout() {
           </ErrorBoundary>
         </div>
       </div>
+      <TutorBall />
     </div>
   );
 }

@@ -86,10 +86,12 @@ export interface QuizQuestion {
 
 export interface TestCase {
   id: number;
+  test_id?: number;
   name: string;
   check?: string;
   value?: string;
   hint?: string;
+  input?: string;
   expected?: string;
   passed?: boolean;
   message?: string;
@@ -262,6 +264,7 @@ export interface DiagnosisResult {
   thinking: string[];
   advice: string[];
   suggestion: string;
+  line_anchors?: Array<{ line: number; note: string }>;
   mode: string;
 }
 
@@ -291,6 +294,57 @@ export interface StudentProfile {
   weak_points: string[];
   strong_points: string[];
   avg_mastery: number;
+  learning_states?: LearningStateItem[];
+  progress_comparisons?: LearningComparison[];
+}
+
+export interface LearningStateItem {
+  id: number;
+  student_id: number;
+  course_id: number;
+  knowledge_point_id: number;
+  knowledge_point: string;
+  subject: string;
+  mastery_score: number;
+  confidence: number;
+  error_count: number;
+  recent_error_count: number;
+  consecutive_error_count: number;
+  success_count: number;
+  last_learning_at: string | null;
+  last_assessment_at: string | null;
+  recent_question_count: number;
+  learning_stability: number;
+  state: "STRUGGLING" | "REVIEW" | "STABLE" | "STRONG" | string;
+  state_reason: string;
+  updated_at: string | null;
+}
+
+export interface LearningComparison {
+  id: number;
+  student_id: number;
+  course_id: number | null;
+  knowledge_point_id: number | null;
+  knowledge_point: string;
+  before_mastery: number;
+  after_mastery: number;
+  before_state: string;
+  after_state: string;
+  interventions: string[];
+  evidence: Record<string, unknown>;
+  is_demo: boolean;
+  created_at: string;
+}
+
+export interface TeacherSuggestionDecision {
+  id: string;
+  suggestion_id: string;
+  course_id: number | null;
+  teacher_id: number;
+  action: "ACCEPT" | "EDIT" | "REJECT" | string;
+  original_suggestion: string;
+  modified_content: string;
+  created_at: string;
 }
 
 export interface Recommendation {
@@ -476,4 +530,65 @@ export interface WorkflowRun {
   created_at: string;
   finished_at: string | null;
   steps: WorkflowStepRun[];
+}
+
+export type SessionStepType =
+  | "goal"
+  | "warmup"
+  | "explain"
+  | "visualize"
+  | "code"
+  | "practice"
+  | "check"
+  | "wrapup";
+
+export interface SessionStep {
+  type: SessionStepType;
+  text?: string;
+  question?: string;
+  options?: string[];
+  title?: string;
+  content?: string;
+  example?: string;
+  anchor?: string;
+  kind?: string;
+  payload?: Record<string, unknown>;
+  language?: string;
+  code?: string;
+  expected_output?: string;
+  qtype?: string;
+  answer?: unknown;
+  hint?: string;
+  prompt?: string;
+  summary?: string;
+  weak_points?: string[];
+  suggestion?: string;
+}
+
+export interface SessionReference {
+  title: string;
+  source: string;
+  course?: string;
+  chapter?: string;
+  source_level?: string;
+  page?: string;
+  snippet?: string;
+  score?: number;
+}
+
+export interface LearningSession {
+  id: number;
+  title: string;
+  depth: string;
+  mode: string;
+  course_id: number;
+  chapter_id: number | null;
+  knowledge_point_id: number | null;
+  current_index: number;
+  status: string;
+  steps: SessionStep[];
+  provider?: string;
+  ai_generated?: boolean;
+  references?: SessionReference[];
+  created_at: string;
 }

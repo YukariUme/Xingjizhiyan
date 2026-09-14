@@ -7,6 +7,9 @@ import { ChatPanel } from "../../components/ChatPanel";
 import { AiMeta } from "../../components/AiMeta";
 import KnowledgeTree, { type KnowledgeGraphNode } from "../../components/KnowledgeTree";
 import AiTutor from "../../components/AiTutor";
+import StudyGuide from "../../components/StudyGuide";
+import { DataStructurePlayer, DATA_STRUCTURES } from "../../components/DataStructurePlayer";
+import Roundtable from "../Roundtable";
 import { WorkflowSteps } from "../../components/WorkflowSteps";
 import { Progress, Tabs } from "../../components/ui";
 import { Card, EmptyState, ErrorBanner, Loading, Modal, useAsync } from "../../components/ui";
@@ -80,17 +83,32 @@ const SCOPE_OPTIONS = [
 export default function CourseSpace() {
   const { courseId } = useParams();
   const id = Number(courseId);
-  const [tab, setTab] = useState("overview");
+  const [view, setView] = useState("home");
+  const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null);
   const [searchParams] = useSearchParams();
 
-  // 支持 ?tab= 深链（演示模式步骤直达 预习/讲堂/图谱/复习/模拟 等页签）
+  // 支持旧 ?tab= 深链映射到新视图
   useEffect(() => {
     const t = searchParams.get("tab");
-    const valid = ["overview", "preview", "lecture", "assignments", "review", "exam", "graph", "materials"];
-    if (t && valid.includes(t)) setTab(t);
+    const map: Record<string, string> = {
+      overview: "home",
+      study: "study",
+      animation: "animation",
+      roundtable: "roundtable",
+      assignments: "assignments",
+      review: "review",
+      exam: "exam",
+      materials: "materials",
+      graph: "graph",
+      preview: "study",
+      lecture: "study",
+      qa: "home",
+    };
+    if (t && map[t]) setView(map[t]);
   }, [searchParams]);
   const overview = useAsync<Overview>(() => api.get(`/curriculum/courses/${id}/overview`), [id]);
   const assignments = useAsync<Assignment[]>(() => api.get(`/assignments?course_id=${id}`), [id]);
+  const graph = useAsync<GraphData>(() => api.get(`/curriculum/courses/${id}/graph`), [id]);
 
   if (overview.loading) return <Loading />;
   if (overview.error) return <ErrorBanner message={overview.error} />;
@@ -102,35 +120,50 @@ export default function CourseSpace() {
     label: `第${c.order}章 ${c.title}`,
   }));
 
+  const openStudy = (chapterId?: number) => {
+    if (chapterId) setSelectedChapterId(chapterId);
+    setView("study");
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>{ov.course_name} · 课程学习空间</h1>
-          <p>{ov.code} · {ov.semester} · 这门课我现在该做什么？</p>
+          <p>{ov.code} · {ov.semester} · {view === "home" ? "这门课我现在该做什么？" : "返回首页查看整体进度与功能入口"}</p>
         </div>
-        <Link to="/learn/courses" className="btn">← 我的课程</Link>
+        <div className="row">
+          {view !== "home" && <button className="btn" onClick={() => setView("home")}>← 课程首页</button>}
+          <Link to="/learn/courses" className="btn">← 我的课程</Link>
+        </div>
       </div>
 
-      <Tabs
-        items={[
-          { key: "overview", label: "课程首页" },
-          { key: "preview", label: "课前预习" },
-          { key: "lecture", label: "AI 助教" },
-          { key: "assignments", label: "作业与实验" },
-          { key: "review", label: "课后复习" },
-          { key: "exam", label: "考前模拟" },
-          { key: "graph", label: "知识图谱" },
-          { key: "materials", label: "课程资料" },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+      {view === "home" && (
+        <div className="course-home">
+          <aside className="ch-left">
+            <CourseNav graph={graph.data} selectedChapterId={selectedChapterId} onSelectChapter={openStudy} />
+          </aside>
+          <main className="ch-main">
+            <HeroCard ov={ov} onStart={() => openStudy(ov.current_chapter?.id)} />
+            <EntryCards onSelect={setView} />
+            <OverviewTab overview={ov} onGo={(t) => setView(t)} />
+          </main>
+        </div>
+      )}
 
-      {tab === "overview" && <OverviewTab overview={ov} onGo={(t) => setTab(t)} />}
-      {tab === "preview" && <PreviewTab courseId={id} chapters={chapterOptions} />}
-      {tab === "lecture" && <AiTutor courseId={id} courseName={ov.course_name} chapters={chapterOptions} />}
-      {tab === "assignments" && (
+      {view === "study" && (
+        <div>
+          <div className="study-breadcrumb">
+            <span className="small muted">学习空间</span>
+            <span className="muted">›</span>
+            <b>{selectedChapterId ? (ov.chapters.find((c) => c.id === selectedChapterId)?.title ?? "自学") : "自学"}</b>
+          </div>
+          <StudyGuide courseId={id} courseName={ov.course_name} chapters={chapterOptions} initialChapterId={selectedChapterId ?? undefined} />
+        </div>
+      )}
+      {view === "animation" && <AnimationPanel />}
+      {view === "roundtable" && <Roundtable />}
+      {view === "assignments" && (
         <div className="grid grid-2">
           {!assignments.data || assignments.data.length === 0 ? (
             <EmptyState text="本课程暂无作业" />
@@ -151,10 +184,130 @@ export default function CourseSpace() {
           )}
         </div>
       )}
-      {tab === "review" && <ReviewTab courseId={id} chapters={chapterOptions} />}
-      {tab === "exam" && <ExamTab courseId={id} chapters={chapterOptions} />}
-      {tab === "graph" && <KnowledgeGraphTab courseId={id} />}
-      {tab === "materials" && <MaterialsTab courseId={id} />}
+      {view === "review" && <ReviewTab courseId={id} chapters={chapterOptions} />}
+      {view === "exam" && <ExamTab courseId={id} chapters={chapterOptions} />}
+      {view === "materials" && <MaterialsTab courseId={id} />}
+      {view === "graph" && <KnowledgeGraphTab courseId={id} />}
+    </div>
+  );
+}
+
+function CourseNav({
+  graph,
+  selectedChapterId,
+  onSelectChapter,
+}: {
+  graph: GraphData | null;
+  selectedChapterId: number | null;
+  onSelectChapter: (id: number) => void;
+}) {
+  if (!graph) {
+    return <Card title="章节 · 知识点"><Loading /></Card>;
+  }
+  return (
+    <Card title="章节 · 知识点">
+      {graph.chapters.map((ch) => {
+        const pts = graph.points.filter((p) => p.chapter_id === ch.id);
+        const active = selectedChapterId === ch.id;
+        return (
+          <div key={ch.id} style={{ marginBottom: 8 }}>
+            <button className={`cw-chapter ${active ? "active" : ""}`} onClick={() => onSelectChapter(ch.id)}>
+              第{ch.order}章 · {ch.title}
+            </button>
+            {active && (
+              <div className="cw-points">
+                {pts.map((p) => (
+                  <button key={p.id} className="cw-point" onClick={() => onSelectChapter(ch.id)}>
+                    {p.name}
+                  </button>
+                ))}
+                {pts.length === 0 && <div className="muted small">暂无知识点</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {graph.chapters.length === 0 && <div className="muted small">暂无章节数据</div>}
+    </Card>
+  );
+}
+
+const ENTRY_GROUPS: Array<{ title: string; items: Array<{ key: string; icon: string; title: string; desc: string }> }> = [
+  {
+    title: "学",
+    items: [
+      { key: "study", icon: "🧭", title: "AI 自学", desc: "按知识点逐步学习" },
+      { key: "animation", icon: "🎬", title: "动画演示", desc: "栈/队列/树/排序/遍历" },
+      { key: "roundtable", icon: "💬", title: "AI 圆桌", desc: "多角色友善讨论" },
+    ],
+  },
+  {
+    title: "练",
+    items: [
+      { key: "assignments", icon: "✍️", title: "作业实验", desc: "编程/简答/报告" },
+      { key: "review", icon: "🔁", title: "课后复习", desc: "薄弱点补漏" },
+      { key: "exam", icon: "📝", title: "考前模拟", desc: "测验与评分" },
+    ],
+  },
+  {
+    title: "查",
+    items: [
+      { key: "materials", icon: "📚", title: "课程资料", desc: "S/A/P 资料" },
+      { key: "graph", icon: "🗺", title: "知识图谱", desc: "知识点关系" },
+    ],
+  },
+];
+
+function HeroCard({ ov, onStart }: { ov: Overview; onStart: () => void }) {
+  const chapter = ov.current_chapter?.title ?? ov.chapters[0]?.title ?? "从第一章开始";
+  return (
+    <div className="hero-card">
+      <div className="hero-copy">
+        <span className="badge">继续学习</span>
+        <h2>{chapter}</h2>
+        <p className="small muted">课程进度 {ov.progress}% · 综合掌握度 {ov.mastery}%</p>
+      </div>
+      <button className="btn btn-primary btn-lg" onClick={onStart}>▶ 开始自学</button>
+    </div>
+  );
+}
+
+function EntryCards({ onSelect }: { onSelect: (key: string) => void }) {
+  return (
+    <div>
+      {ENTRY_GROUPS.map((g) => (
+        <div key={g.title} style={{ marginBottom: 16 }}>
+          <div className="entry-group-title">{g.title}</div>
+          <div className="entry-cards">
+            {g.items.map((e) => (
+              <button key={e.key} className="entry-tile" onClick={() => onSelect(e.key)}>
+                <span className="entry-tile-icon">{e.icon}</span>
+                <b>{e.title}</b>
+                <span className="small muted">{e.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AnimationPanel() {
+  const [kind, setKind] = useState("sorting");
+  const active = DATA_STRUCTURES.find((s) => s.id === kind) ?? DATA_STRUCTURES[0];
+  return (
+    <div>
+      <div className="row wrap" style={{ gap: 6, marginBottom: 16 }}>
+        {DATA_STRUCTURES.map((s) => (
+          <button key={s.id} className={`btn btn-sm ${kind === s.id ? "btn-primary" : ""}`} onClick={() => setKind(s.id)}>
+            {s.name}（{s.en}）
+          </button>
+        ))}
+      </div>
+      <Card title={`${active.name} · ${active.en}`} extra={<span className="badge">{active.desc}</span>}>
+        <DataStructurePlayer key={kind} kind={kind} />
+      </Card>
     </div>
   );
 }
@@ -174,6 +327,22 @@ function KnowledgeGraphTab({ courseId }: { courseId: number }) {
 }
 
 function OverviewTab({ overview, onGo }: { overview: Overview; onGo: (t: string) => void }) {
+  const nextStep = (() => {
+    const homework = overview.pending_tasks.find((t) => t.task_type === "homework");
+    const reviewTask = overview.pending_tasks.find((t) => t.task_type === "review" || t.task_type === "retry");
+    const weak = overview.weak_points[0];
+    if (homework) {
+      return { tab: "assignments", title: "先完成作业", reason: homework.reason, action: "去作业页" };
+    }
+    if (weak) {
+      return { tab: "review", title: `先复习「${weak.name}」`, reason: `当前掌握度 ${weak.mastery}% ，先补这个点更划算。`, action: "去复习" };
+    }
+    if (reviewTask) {
+      return { tab: "review", title: reviewTask.title, reason: reviewTask.reason, action: "去复盘" };
+    }
+    return { tab: "study", title: "开始自学", reason: "当前没有明显待办，可以从一个知识点开始自学。", action: "去自学" };
+  })();
+
   return (
     <div className="grid">
       <div className="grid grid-4">
@@ -244,6 +413,16 @@ function OverviewTab({ overview, onGo }: { overview: Overview; onGo: (t: string)
         </Card>
       </div>
 
+      <Card title="下一步建议">
+        <div className="row space-between" style={{ alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div className="badge blue mb-8">{nextStep.title}</div>
+            <div className="small muted">{nextStep.reason}</div>
+          </div>
+          <button className="btn btn-primary" onClick={() => onGo(nextStep.tab)}>{nextStep.action}</button>
+        </div>
+      </Card>
+
       <Card title="最近学习活动">
         {overview.recent_records.length === 0 ? (
           <div className="muted small">还没有学习记录，从预习开始吧</div>
@@ -255,21 +434,9 @@ function OverviewTab({ overview, onGo }: { overview: Overview; onGo: (t: string)
           ))
         )}
       </Card>
-
-      <Card title="快速入口">
-        <div className="row wrap">
-          <button className="btn btn-primary" onClick={() => onGo("preview")}>开始预习</button>
-          <button className="btn" onClick={() => onGo("lecture")}>继续学习</button>
-          <button className="btn" onClick={() => onGo("qa")}>AI 答疑</button>
-          <button className="btn" onClick={() => onGo("assignments")}>查看作业</button>
-          <button className="btn" onClick={() => onGo("review")}>开始复习</button>
-          <button className="btn" onClick={() => onGo("exam")}>考前模拟</button>
-        </div>
-      </Card>
     </div>
   );
 }
-
 function ChapterSelect({ chapters, value, onChange }: {
   chapters: Array<{ key: string; label: string }>;
   value: string;
@@ -757,6 +924,21 @@ function MaterialsTab({ courseId }: { courseId: number }) {
   const [scope, setScope] = useState("private");
   const [title, setTitle] = useState("");
   const [msg, setMsg] = useState("");
+  const [reader, setReader] = useState<{ id: number; title: string; content: string; source: string; type: string; chapter: string } | null>(null);
+  const [readerBusy, setReaderBusy] = useState(false);
+  const openReader = async (m: { id: number; title: string }) => {
+    setReaderBusy(true);
+    try {
+      const d = await api.get<{ id: number; title: string; content: string; source: string; type: string; chapter: string }>(
+        `/knowledge/documents/${m.id}`
+      );
+      setReader(d);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "打开失败");
+    } finally {
+      setReaderBusy(false);
+    }
+  };
   const upload = async () => {
     if (!file) return;
     const fd = new FormData();
@@ -792,7 +974,10 @@ function MaterialsTab({ courseId }: { courseId: number }) {
           {materials.data.map((m) => (
             <Card key={m.id} title={m.title} extra={<span className={`badge ${m.source_level === "S" ? "green" : m.source_level === "A" ? "orange" : "purple"}`}>[{m.source_level}] {levelLabel[m.source_level]}</span>}>
               <p className="small muted">{m.type} · {m.topic} · {m.chapter} · {m.source}</p>
-              {m.owner_me && <span className="badge gray">我的资料</span>}
+              <div className="row mt-8">
+                <button className="btn btn-sm btn-primary" onClick={() => void openReader(m)} disabled={readerBusy}>打开阅读</button>
+                {m.owner_me && <span className="badge gray">我的资料</span>}
+              </div>
             </Card>
           ))}
         </div>
@@ -810,8 +995,13 @@ function MaterialsTab({ courseId }: { courseId: number }) {
         }
       >
         <div className="field">
-          <label>选择文件（txt / md / pdf）</label>
-          <input type="file" accept=".txt,.md,.pdf" className="input" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <label>选择文件（txt / md / pdf / epub）</label>
+          <input
+            type="file"
+            accept=".txt,.md,.markdown,.pdf,.epub,.ppt,.pptx,.doc,.docx"
+            className="input"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
         </div>
         <div className="field">
           <label>资料范围</label>
@@ -824,6 +1014,26 @@ function MaterialsTab({ courseId }: { courseId: number }) {
           <label>标题（留空使用文件名）</label>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
+      </Modal>
+
+      <Modal
+        title={reader?.title ?? "阅读资料"}
+        open={reader != null}
+        onClose={() => setReader(null)}
+        footer={<button className="btn" onClick={() => setReader(null)}>关闭</button>}
+      >
+        {reader && (
+          <>
+            <div className="row wrap mb-8">
+              {reader.type && <span className="badge">{reader.type}</span>}
+              {reader.chapter && <span className="badge gray">{reader.chapter}</span>}
+              {reader.source && <span className="badge gray">{reader.source}</span>}
+            </div>
+            <div className="code-block" style={{ maxHeight: "62vh", overflow: "auto", whiteSpace: "pre-wrap" }}>
+              {reader.content || "（无正文内容）"}
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );
